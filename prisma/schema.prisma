@@ -1,0 +1,154 @@
+// Database schema for Partners In Creation.
+// SQLite is the default so the site runs with zero setup. To use Postgres in
+// production, change `provider` to "postgresql" and set DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Single row (id = 1) of editable site copy and contact details.
+model SiteSettings {
+  id              Int      @id @default(1)
+  siteName        String   @default("Partners In Creation")
+  tagline         String   @default("A Torah learning community")
+  welcomeMessage  String   @default("[Placeholder] A short welcome message for visitors. Edit this in the admin dashboard under Settings.")
+  aboutTitle      String   @default("About Aviezer")
+  aboutText       String   @default("[Placeholder] A concise introduction to Aviezer. Add his background here in the admin dashboard; nothing has been written on his behalf.")
+  communityText   String   @default("[Placeholder] A few sentences about the purpose of Partners In Creation and who the classes are for.")
+  scheduleSummary String   @default("Classes meet twice a week.")
+  contactEmail    String   @default("contact@example.com")
+  contactPhone    String   @default("")
+  whatsappUrl     String   @default("")
+  aboutPhotoUrl   String   @default("")
+  timezone        String   @default("America/New_York")
+  updatedAt       DateTime @updatedAt
+}
+
+// A recurring pattern, e.g. "Sunday and Wednesday at 8:00 pm".
+model ClassSeries {
+  id                 String         @id @default(cuid())
+  title              String
+  description        String         @default("")
+  daysOfWeek         String // comma separated, 0 = Sunday .. 6 = Saturday
+  startTime          String // "20:00" in the series time zone
+  endTime            String?
+  timezone           String
+  format             String         @default("IN_PERSON") // IN_PERSON | ONLINE | HYBRID
+  venueName          String         @default("")
+  address            String         @default("")
+  directionsUrl      String         @default("")
+  meetingUrl         String         @default("")
+  locationVisibility String         @default("PRIVATE") // PUBLIC | SUBSCRIBERS | PRIVATE
+  active             Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  sessions           ClassSession[]
+}
+
+// A single dated class. Generated sessions from a series can be edited one by one.
+model ClassSession {
+  id                 String       @id @default(cuid())
+  seriesId           String?
+  series             ClassSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  title              String
+  description        String       @default("")
+  startsAt           DateTime
+  endsAt             DateTime?
+  timezone           String
+  format             String       @default("IN_PERSON")
+  venueName          String       @default("")
+  address            String       @default("")
+  directionsUrl      String       @default("")
+  meetingUrl         String       @default("")
+  locationVisibility String       @default("PRIVATE")
+  status             String       @default("PUBLISHED") // DRAFT | PUBLISHED | RESCHEDULED | CANCELLED
+  statusNote         String       @default("")
+  originalStartsAt   DateTime?
+  edited             Boolean      @default(false) // true once changed from the series defaults
+  reminderSentAt     DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  rsvps              Rsvp[]
+
+  @@index([startsAt])
+  @@index([seriesId])
+}
+
+// A request to attend a class whose address is shared privately.
+model Rsvp {
+  id          String       @id @default(cuid())
+  sessionId   String
+  session     ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  name        String
+  email       String
+  note        String       @default("")
+  status      String       @default("PENDING") // PENDING | APPROVED | DECLINED
+  sharedAt    DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@unique([sessionId, email])
+}
+
+model Recording {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String   @default("")
+  topic       String   @default("")
+  recordedOn  DateTime
+  mediaType   String   @default("AUDIO") // AUDIO | VIDEO (video reserved for later)
+  // Exactly one of storageKey (uploaded file) or externalUrl is set.
+  storageKey  String?
+  externalUrl String?
+  mimeType    String   @default("")
+  sizeBytes   Int?
+  durationSec Int?
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([recordedOn])
+}
+
+model Announcement {
+  id          String    @id @default(cuid())
+  title       String
+  body        String
+  category    String    @default("ANNOUNCEMENT") // ANNOUNCEMENT | SCHEDULE | COMMUNITY
+  pinned      Boolean   @default(false)
+  published   Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+  notifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Subscriber {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String    @default("")
+  token              String    @unique // used in confirm, member and unsubscribe links
+  confirmedAt        DateTime?
+  unsubscribedAt     DateTime?
+  wantsReminders     Boolean   @default(true)
+  wantsAnnouncements Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+}
+
+// Every email the site sends is recorded here, so the admin can see what went out
+// even before a real email provider is configured.
+model OutboxEmail {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  text      String
+  status    String   @default("LOGGED") // LOGGED | SENT | FAILED
+  error     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -58,7 +58,9 @@ npm run dev               # http://localhost:3000, admin at /admin
 ## Hosting options
 
 - **A server with a disk** (Railway, Render, Fly.io, a small VPS): works as is with SQLite and local audio storage.
-  Mount a persistent volume for the database file and `UPLOAD_DIR`.
+  Mount a persistent volume for the database file and `UPLOAD_DIR`. On Railway, `railway.json` already sets the
+  start command (it creates the database tables on each start); add a volume at `/data` and set
+  `DATABASE_URL=file:/data/site.db` and `UPLOAD_DIR=/data/uploads`.
 - **Vercel or another serverless host**: the file system doesn't persist, so use Postgres (change `provider` in
   `prisma/schema.prisma` to `postgresql`, e.g. Neon or Supabase) and S3-compatible storage for audio (Cloudflare R2
   is inexpensive for audio). The bucket needs public read access (or a public custom domain) for `S3_PUBLIC_URL`,
